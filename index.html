@@ -1,199 +1,177 @@
 <!DOCTYPE html>
 <html lang="sv">
 <head>
-    <meta charset="UTF-8">
-    <title>Volymberäkning för Container</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            padding: 20px;
-            background-color: #f0f4f8;
-        }
-        select, input, button {
-            margin: 10px 0;
-            padding: 10px;
-            font-size: 1em;
-            width: 100%;
-            max-width: 400px;
-            box-sizing: border-box;
-        }
-        .info, .resultat {
-            margin-top: 20px;
-            font-weight: bold;
-        }
-        @media (max-width: 600px) {
-            body {
-                font-size: 1.2em;
-            }
-            select, input, button {
-                font-size: 1.1em;
-            }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>Volymberäkning för Container</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background-color: #f0f4f8;
+    }
+    select, input, button {
+      margin: 10px 0;
+      padding: 10px;
+      font-size: 1em;
+      width: 100%;
+      max-width: 400px;
+      box-sizing: border-box;
+    }
+    .info, .resultat {
+      margin-top: 20px;
+      font-weight: bold;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 1.2em;
+      }
+      select, input, button {
+        font-size: 1.1em;
+      }
+    }
+  </style>
 </head>
 <body>
-    <h2>Volymberäkning för Container</h2>
-    <label for="container">Välj containernummer:</label><br>
-    <select id="container" onchange="visaInfo()" size="10" style="width: 200px; max-height: 200px; overflow-y: auto;">
-        <option value="">-- Välj --</option>
-    </select><br>
+  <h2>Volymberäkning för Container</h2>
 
-    <div class="info" id="info"></div>
+  <label for="container">Välj containernummer:</label><br>
+  <select id="container" onchange="visaInfo()" size="10" style="width: 200px; max-height: 200px; overflow-y: auto;">
+    <option value="">-- Välj --</option>
+  </select><br>
 
-    <hr style="margin-top: 30px;">
+  <div class="info" id="info"></div>
 
-    <label for="justering">Justering i cm (kan vara negativ):</label><br>
-    <input type="text" id="justering" inputmode="numeric" pattern="[0-9-]*" autocomplete="off" oninput="formatNumberInput(this)" /><br>
+  <hr style="margin-top: 30px;">
 
-    <button onclick="beraknaVolym()">Beräkna Volym</button>
+  <label for="justering">Justering i cm (kan vara negativ):</label><br>
+  <input type="range" id="justering" min="-100" max="100" value="0" step="1" oninput="document.getElementById('justeringValue').textContent = this.value" />
+  <div>Värde: <span id="justeringValue">0</span> cm</div><br>
 
-    <div class="resultat" id="resultat"></div>
+  <button onclick="beraknaVolym()">Beräkna Volym</button>
 
-    <script>
-        function parseCSV(text) {
-            const rows = [];
-            const lines = text.trim().split('\n');
-            for (const line of lines) {
-                const values = [];
-                let current = '';
-                let inQuotes = false;
-                for (let i = 0; i < line.length; i++) {
-                    const char = line[i];
-                    if (char === '"') {
-                        inQuotes = !inQuotes;
-                    } else if (char === ',' && !inQuotes) {
-                        values.push(current);
-                        current = '';
-                    } else {
-                        current += char;
-                    }
-                }
-                values.push(current);
-                rows.push(values);
-            }
-            return rows;
+  <div class="resultat" id="resultat"></div>
+
+  <script>
+    function parseCSV(text) {
+      const rows = [];
+      const lines = text.trim().split('\n');
+      for (const line of lines) {
+        const values = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            values.push(current);
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        values.push(current);
+        rows.push(values);
+      }
+      return rows;
+    }
+
+    function formatExcelDate(dateStr) {
+  if (!dateStr) return '';
+  if (!isNaN(dateStr)) {
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    const date = new Date(excelEpoch.getTime() + parseFloat(dateStr) * 86400000);
+    return date.toISOString().split('T')[0];
+  }
+  const parsed = new Date(dateStr);
+  return isNaN(parsed.getTime()) ? dateStr : parsed.toISOString().split('T')[0];
+}
+
+    let containrar = {};
+
+    fetch("https://docs.google.com/spreadsheets/d/e/2PACX-1vQq3iGFMUa4keYYk5q4wqwCto3DYFhfLQrCCkUe-UhBESrfP_Qs6EKigUENKJDZBC9wxHx8-Xg4I68o/pub?output=csv")
+      .then(response => response.text())
+      .then(csv => {
+        const rows = parseCSV(csv);
+        const headers = rows[0].map(h => h.trim().toLowerCase());
+        const idx = h => headers.indexOf(h.toLowerCase());
+
+        for (let i = 1; i < rows.length; i++) {
+          const values = rows[i];
+          if (!values[idx('containernr')]) {
+            console.warn(`Rad ${i + 1} saknar containernr eller är ogiltig:`, values);
+            continue;
+          }
+
+          const containernr = values[idx('containernr')];
+          containrar[containernr] = {
+            langd: parseFloat(values[idx('langd')].replace(',', '.')),
+            bredd: parseFloat(values[idx('bredd')].replace(',', '.')),
+            hojd: parseFloat(values[idx('hojd')].replace(',', '.')),
+            datum_uppmatning: values[idx('datum_uppmatning')],
+            giltig_tom: values[idx('giltig_tom')],
+            status: values[idx('status')],
+            kubik: parseFloat(values[idx('kubik')].replace(',', '.'))
+          };
+
+          if (Object.values(containrar[containernr]).some(v => v === undefined || (typeof v === 'number' && isNaN(v)))) {
+            console.warn(`Inkomplett data för container '${containernr}':`, containrar[containernr]);
+          }
         }
 
-        function formatExcelDate(dateStr) {
-            if (!dateStr) return '';
-            if (!isNaN(dateStr)) {
-                const excelEpoch = new Date(Date.UTC(1899, 11, 30));
-                const date = new Date(excelEpoch.getTime() + parseFloat(dateStr) * 86400000);
-                return date.toISOString().split('T')[0];
-            }
-            const parsed = new Date(dateStr);
-            return isNaN(parsed.getTime()) ? dateStr : parsed.toISOString().split('T')[0];
-        }
+        fyllDropdown();
+      });
 
-        let containrar = {};
-        fetch("https://docs.google.com/spreadsheets/d/e/2PACX-1vQq3iGFMUa4keYYk5q4wqwCto3DYFhfLQrCCkUe-UhBESrfP_Qs6EKigUENKJDZBC9wxHx8-Xg4I68o/pub?output=csv")
-            .then(response => response.text())
-            .then(csv => {
-                const rows = parseCSV(csv);
-                const headers = rows[0].map(h => h.trim().toLowerCase());
-                const idx = h => headers.indexOf(h.toLowerCase());
+    function fyllDropdown() {
+      const select = document.getElementById("container");
+      for (const nr of Object.keys(containrar).sort()) {
+        const opt = document.createElement("option");
+        opt.value = nr;
+        opt.textContent = nr;
+        select.appendChild(opt);
+      }
+    }
 
-                for (let i = 1; i < rows.length; i++) {
-                    const values = rows[i];
-                    if (!values[idx('containernr')]) {
-                        console.warn(`Rad ${i + 1} saknar containernr eller är ogiltig:`, values);
-                        continue;
-                    }
-                    const containernr = values[idx('containernr')];
-                    containrar[containernr] = {
-                        langd: parseFloat(values[idx('langd')].replace(',', '.')),
-                        bredd: parseFloat(values[idx('bredd')].replace(',', '.')),
-                        hojd: parseFloat(values[idx('hojd')].replace(',', '.')),
-                        datum_uppmatning: values[idx('datum_uppmatning')],
-                        giltig_tom: values[idx('giltig_tom')],
-                        status: values[idx('status')],
-                        kubik: parseFloat(values[idx('kubik')].replace(',', '.'))
-                    };
-                    if (Object.values(containrar[containernr]).some(v => v === undefined || (typeof v === 'number' && isNaN(v)))) {
-                        console.warn(`Inkomplett data för container '${containernr}':`, containrar[containernr]);
-                    }
-                }
-                fyllDropdown();
-            });
+    function visaInfo() {
+      const containerNr = document.getElementById('container').value.trim();
+      const infoRuta = document.getElementById('info');
 
-        function fyllDropdown() {
-            const select = document.getElementById("container");
-            for (const nr of Object.keys(containrar).sort()) {
-                const opt = document.createElement("option");
-                opt.value = nr;
-                opt.textContent = nr;
-                select.appendChild(opt);
-            }
-        }
+      if (containrar[containerNr]) {
+        const d = containrar[containerNr];
+        infoRuta.innerHTML = `
+          <strong>Mått</strong><br>
+          Längd: ${d.langd} m<br>
+          Bredd: ${d.bredd} m<br>
+          Höjd: ${d.hojd} m<br><br>
+          <strong>Övrig information</strong><br>
+          Datum uppmätning: ${formatExcelDate(d.datum_uppmatning)}<br>
+          Giltig t.o.m: ${formatExcelDate(d.giltig_tom)}<br>
+          Status/övr info: ${d.status}<br>
+          Ursprungsvolym: ${d.kubik.toFixed(2)} m³
+        `;
+      } else {
+        infoRuta.textContent = '';
+      }
+    }
 
-        function visaInfo() {
-            const containerNr = document.getElementById('container').value.trim();
-            const infoRuta = document.getElementById('info');
-            if (containrar[containerNr]) {
-                const d = containrar[containerNr];
-                infoRuta.innerHTML = `
-                    <strong>Mått</strong><br>
-                    Längd: ${d.langd} m<br>
-                    Bredd: ${d.bredd} m<br>
-                    Höjd: ${d.hojd} m<br><br>
-                    <strong>Övrig information</strong><br>
-                    Datum uppmätning: ${formatExcelDate(d.datum_uppmatning)}<br>
-                    Giltig t.o.m: ${formatExcelDate(d.giltig_tom)}<br>
-                    Status/övr info: ${d.status}<br>
-                    Ursprungsvolym: ${d.kubik.toFixed(2)} m³
-                `;
-            } else {
-                infoRuta.textContent = '';
-            }
-        }
+    function beraknaVolym() {
+      const containerNr = document.getElementById('container').value.trim();
+      const justeringCm = parseFloat(document.getElementById('justering').value);
+      const resultatRuta = document.getElementById('resultat');
 
-        // Ny funktion för att formatera inmatningen
-        function formatNumberInput(inputElement) {
-            let value = inputElement.value;
-            // Ersätt kommatecken med punkt för att parseFloat ska fungera konsekvent
-            value = value.replace(',', '.');
-            
-            // Hantera minustecknet och se till att endast siffror följer
-            let cleanedValue = '';
-            let hasMinus = false;
+      if (!containerNr || !containrar[containerNr]) {
+        resultatRuta.textContent = 'Välj ett giltigt containernummer.';
+        return;
+      }
 
-            if (value.startsWith('-')) {
-                hasMinus = true;
-                value = value.substring(1); // Ta bort inledande minus för att behandla resten
-            }
+      const data = containrar[containerNr];
+      const justeringMeter = justeringCm / 100;
+      const justeradHojd = data.hojd + justeringMeter;
+      const volym = data.langd * data.bredd * justeradHojd;
 
-            // Filtrera ut icke-numeriska tecken
-            let numericPart = value.replace(/[^0-9]/g, '');
-
-            // Återuppbygg strängen med eventuellt minustecken och siffror
-            cleanedValue = (hasMinus ? '-' : '') + numericPart;
-            
-            inputElement.value = cleanedValue;
-        }
-
-        function beraknaVolym() {
-            const containerNr = document.getElementById('container').value.trim();
-            const inputVal = document.getElementById('justering').value; // Använd direkt värdet, formatNumberInput har redan rensat det
-            const justeringCm = parseFloat(inputVal);
-            const resultatRuta = document.getElementById('resultat');
-
-            if (!containerNr || !containrar[containerNr]) {
-                resultatRuta.textContent = 'Välj ett giltigt containernummer.';
-                return;
-            }
-            
-            if (isNaN(justeringCm)) {
-                resultatRuta.textContent = 'Ange en giltig siffra för justering (t.ex. 10, -5).';
-                return;
-            }
-
-            const data = containrar[containerNr];
-            const justeringMeter = justeringCm / 100;
-            const justeradHojd = data.hojd + justeringMeter;
-            const volym = data.langd * data.bredd * justeradHojd;
-            resultatRuta.textContent = 'Beräknad volym: ' + volym.toFixed(2) + ' m³';
-        }
-    </script>
+      resultatRuta.textContent = 'Beräknad volym: ' + volym.toFixed(2) + ' m³';
+    }
+  </script>
 </body>
 </html>
