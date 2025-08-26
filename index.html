@@ -90,7 +90,7 @@
 
     let containrar = {};
 
-    fetch("https://docs.google.com/spreadsheets/d/e/2PACX-1vQq3iGFMUa4keYYk5q4wqwCto3DYFhfLQrCCkUe-UhBESrfP_Qs6EKigUENKJDZBC9wxHx8-Xg4I68o/pub?output=csv")
+    fetch("data.csv")
       .then(response => response.text())
       .then(csv => {
         const rows = parseCSV(csv);
