@@ -45,13 +45,14 @@
   <hr style="margin-top: 30px;">
 
   <label for="justering">Justering i cm (kan vara negativ):</label><br>
-  <input type="range" id="justering" min="-100" max="40" value="0" step="1" oninput="document.getElementById('justeringValue').textContent = this.value" />
+  <input type="range" id="justering" min="-250" max="40" value="0" step="1" oninput="document.getElementById('justeringValue').textContent = this.value" />
   <div>Värde: <span id="justeringValue">0</span> cm</div><br>
 
-  <button onclick="beraknaVolym()">Beräkna Volym</button>
 
   <div class="resultat" id="resultat"></div>
-
+  
+ < onclick="beraknaVolym()">Beräkna Volym</button>
+   
   <script>
     function parseCSV(text) {
       const rows = [];
